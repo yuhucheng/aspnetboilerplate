@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -191,7 +191,7 @@ namespace Abp.Authorization
 
                     if (passwordExpiration > 0 &&
                         user.LastPasswordChangedDateUtc.HasValue &&
-                        user.LastPasswordChangedDateUtc + TimeSpan.FromDays(passwordExpiration) > DateTime.UtcNow)
+                        user.LastPasswordChangedDateUtc + TimeSpan.FromDays(passwordExpiration) <= DateTime.UtcNow)
                     {
                         return new AbpLoginResult<TTenant, TUser>(AbpLoginResultType.UserPasswordExpired, tenant, user);
                     }

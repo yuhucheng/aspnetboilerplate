@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Abp.Authorization;
 using Abp.Authorization.Users;
@@ -106,6 +107,31 @@ namespace Abp.Zero.SampleApp.Tests.Users
             loginResult.Result.ShouldBe(AbpLoginResultType.Success);
             loginResult.User.Name.ShouldBe("Owner");
             loginResult.Identity.ShouldNotBe(null);
+        }
+
+        [Fact]
+        public async Task Should_Not_Login_If_Password_Expiration()
+        {
+            await Resolve<ISettingManager>()
+                .ChangeSettingForApplicationAsync(AbpZeroSettingNames.UserManagement.PasswordExpiration, "7");
+
+            var user = await UserManager.FindByNameAsync("userOwner");
+            user.LastPasswordChangedDateUtc = DateTime.UtcNow - TimeSpan.FromDays(8);
+            await UserManager.UpdateAsync(user);
+
+            var loginResult = await _logInManager.LoginAsync("userOwner", "123qwe");
+            loginResult.Result.ShouldBe(AbpLoginResultType.UserPasswordExpired);
+            loginResult.User.Name.ShouldBe("Owner");
+            loginResult.Identity.ShouldBeNull();
+
+            UsingDbContext(context =>
+            {
+                context.UserLoginAttempts.Count().ShouldBe(1);
+                context.UserLoginAttempts.FirstOrDefault(a =>
+                    a.UserNameOrEmailAddress == "userOwner" &&
+                    a.Result == AbpLoginResultType.UserPasswordExpired
+                ).ShouldNotBeNull();
+            });
         }
     }
 }
