@@ -126,7 +126,7 @@ namespace Abp.Authorization.Users
             }
 
             await InitializeOptionsAsync(user.TenantId);
-
+            user.LastPasswordChangedDateUtc = DateTime.UtcNow;
             return await base.CreateAsync(user);
         }
 
@@ -395,6 +395,7 @@ namespace Abp.Authorization.Users
             }
 
             await AbpUserStore.SetPasswordHashAsync(user, PasswordHasher.HashPassword(user, newPassword));
+            user.LastPasswordChangedDateUtc = DateTime.UtcNow;
             return IdentityResult.Success;
         }
 

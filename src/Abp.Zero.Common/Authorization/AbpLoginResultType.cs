@@ -21,5 +21,7 @@ namespace Abp.Authorization
         LockedOut,
 
         UserPhoneNumberIsNotConfirmed,
+
+        UserPasswordExpired
     }
 }

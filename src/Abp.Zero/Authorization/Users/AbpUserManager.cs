@@ -124,7 +124,7 @@ namespace Abp.Authorization.Users
             }
 
             InitializeLockoutSettings(user.TenantId);
-
+            user.LastPasswordChangedDateUtc = DateTime.UtcNow;
             return await base.CreateAsync(user);
         }
 
@@ -386,6 +386,7 @@ namespace Abp.Authorization.Users
             }
 
             await AbpStore.SetPasswordHashAsync(user, PasswordHasher.HashPassword(newPassword));
+            user.LastPasswordChangedDateUtc = DateTime.UtcNow;
             return IdentityResult.Success;
         }
 

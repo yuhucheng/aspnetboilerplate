@@ -9,6 +9,11 @@ namespace Abp.Zero.Configuration
             /// </summary>
             public const string IsEmailConfirmationRequiredForLogin = "Abp.Zero.UserManagement.IsEmailConfirmationRequiredForLogin";
 
+            /// <summary>
+            /// "Abp.Zero.UserManagement.PasswordExpiration.
+            /// </summary>
+            public const string PasswordExpiration = "Abp.Zero.UserManagement.PasswordExpiration";
+
             public static class UserLockOut
             {
                 /// <summary>

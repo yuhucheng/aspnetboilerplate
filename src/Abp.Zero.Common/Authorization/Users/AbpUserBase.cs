@@ -133,6 +133,11 @@ namespace Abp.Authorization.Users
         public virtual string Password { get; set; }
 
         /// <summary>
+        /// Last Password changed date 
+        /// </summary>
+        public virtual DateTime? LastPasswordChangedDateUtc { get; set; }
+
+        /// <summary>
         /// Confirmation code for email.
         /// </summary>
         [StringLength(MaxEmailConfirmationCodeLength)]

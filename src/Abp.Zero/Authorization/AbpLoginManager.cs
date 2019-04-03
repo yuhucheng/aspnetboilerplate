@@ -184,6 +184,17 @@ namespace Abp.Authorization
                     }
 
                     await UserManager.ResetAccessFailedCountAsync(user.Id);
+
+                    var passwordExpiration =
+                        await SettingManager.GetSettingValueAsync<double>(AbpZeroSettingNames.UserManagement
+                            .PasswordExpiration);
+
+                    if (passwordExpiration > 0 &&
+                        user.LastPasswordChangedDateUtc.HasValue &&
+                        user.LastPasswordChangedDateUtc + TimeSpan.FromDays(passwordExpiration) > DateTime.UtcNow)
+                    {
+                        return new AbpLoginResult<TTenant, TUser>(AbpLoginResultType.UserPasswordExpired, tenant, user);
+                    }
                 }
 
                 return await CreateLoginResultAsync(user, tenant);

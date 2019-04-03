@@ -120,7 +120,15 @@ namespace Abp.Zero.Configuration
                            new FixedLocalizableString("Required length."),
                            scopes: SettingScopes.Application | SettingScopes.Tenant,
                            clientVisibilityProvider: new VisibleSettingClientVisibilityProvider()
-                           )
+                           ),
+
+                       new SettingDefinition(
+                           AbpZeroSettingNames.UserManagement.PasswordExpiration,
+                           "0",
+                           new FixedLocalizableString("Password Expiration"),
+                           scopes: SettingScopes.All,
+                           clientVisibilityProvider: new VisibleSettingClientVisibilityProvider()
+                       )
                    };
         }
     }
