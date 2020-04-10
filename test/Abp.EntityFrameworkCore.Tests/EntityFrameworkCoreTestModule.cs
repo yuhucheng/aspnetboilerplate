@@ -12,6 +12,7 @@ using Abp.Dependency;
 using Abp.Reflection.Extensions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Microsoft.EntityFrameworkCore.Query;
 
 namespace Abp.EntityFrameworkCore.Tests
 {
@@ -46,11 +47,17 @@ namespace Abp.EntityFrameworkCore.Tests
             IocManager.RegisterAssemblyByConvention(typeof(EntityFrameworkCoreTestModule).GetAssembly());
         }
 
+        public override void PostInitialize()
+        {
+            using (var context = IocManager.Resolve<BloggingDbContext>())
+            {
+                context.Database.ExecuteSqlCommand("CREATE VIEW BlogView AS SELECT Id, Name, Url FROM Blogs");
+            }
+        }
+
         private static void RegisterBloggingDbContextToSqliteInMemoryDb(IIocManager iocManager)
         {
             var builder = new DbContextOptionsBuilder<BloggingDbContext>();
-
-            builder.ReplaceService<IEntityMaterializerSource, AbpEntityMaterializerSource>();
 
             var inMemorySqlite = new SqliteConnection("Data Source=:memory:");
             builder.UseSqlite(inMemorySqlite);
@@ -69,8 +76,6 @@ namespace Abp.EntityFrameworkCore.Tests
         private static void RegisterSupportDbContextToSqliteInMemoryDb(IIocManager iocManager)
         {
             var builder = new DbContextOptionsBuilder<SupportDbContext>();
-
-            builder.ReplaceService<IEntityMaterializerSource, AbpEntityMaterializerSource>();
 
             var inMemorySqlite = new SqliteConnection("Data Source=:memory:");
             builder.UseSqlite(inMemorySqlite);

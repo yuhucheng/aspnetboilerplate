@@ -98,27 +98,27 @@ namespace Abp.EntityFramework.Repositories
 
         public override async Task<List<TEntity>> GetAllListAsync()
         {
-            return await GetAll().ToListAsync();
+            return await GetAll().ToListAsync(CancellationTokenProvider.Token);
         }
 
         public override async Task<List<TEntity>> GetAllListAsync(Expression<Func<TEntity, bool>> predicate)
         {
-            return await GetAll().Where(predicate).ToListAsync();
+            return await GetAll().Where(predicate).ToListAsync(CancellationTokenProvider.Token);
         }
 
         public override async Task<TEntity> SingleAsync(Expression<Func<TEntity, bool>> predicate)
         {
-            return await GetAll().SingleAsync(predicate);
+            return await GetAll().SingleAsync(predicate, CancellationTokenProvider.Token);
         }
 
         public override async Task<TEntity> FirstOrDefaultAsync(TPrimaryKey id)
         {
-            return await GetAll().FirstOrDefaultAsync(CreateEqualityExpressionForId(id));
+            return await GetAll().FirstOrDefaultAsync(CreateEqualityExpressionForId(id), CancellationTokenProvider.Token);
         }
 
         public override async Task<TEntity> FirstOrDefaultAsync(Expression<Func<TEntity, bool>> predicate)
         {
-            return await GetAll().FirstOrDefaultAsync(predicate);
+            return await GetAll().FirstOrDefaultAsync(predicate, CancellationTokenProvider.Token);
         }
 
         public override TEntity Insert(TEntity entity)
@@ -149,7 +149,7 @@ namespace Abp.EntityFramework.Repositories
 
             if (entity.IsTransient())
             {
-                await Context.SaveChangesAsync();
+                await Context.SaveChangesAsync(CancellationTokenProvider.Token);
             }
 
             return entity.Id;
@@ -173,7 +173,7 @@ namespace Abp.EntityFramework.Repositories
 
             if (entity.IsTransient())
             {
-                await Context.SaveChangesAsync();
+                await Context.SaveChangesAsync(CancellationTokenProvider.Token);
             }
 
             return entity.Id;
@@ -216,22 +216,22 @@ namespace Abp.EntityFramework.Repositories
 
         public override async Task<int> CountAsync()
         {
-            return await GetAll().CountAsync();
+            return await GetAll().CountAsync(CancellationTokenProvider.Token);
         }
 
         public override async Task<int> CountAsync(Expression<Func<TEntity, bool>> predicate)
         {
-            return await GetAll().Where(predicate).CountAsync();
+            return await GetAll().Where(predicate).CountAsync(CancellationTokenProvider.Token);
         }
 
         public override async Task<long> LongCountAsync()
         {
-            return await GetAll().LongCountAsync();
+            return await GetAll().LongCountAsync(CancellationTokenProvider.Token);
         }
 
         public override async Task<long> LongCountAsync(Expression<Func<TEntity, bool>> predicate)
         {
-            return await GetAll().Where(predicate).LongCountAsync();
+            return await GetAll().Where(predicate).LongCountAsync(CancellationTokenProvider.Token);
         }
 
         protected virtual void AttachIfNot(TEntity entity)
@@ -261,10 +261,30 @@ namespace Abp.EntityFramework.Repositories
                 .LoadAsync(cancellationToken);
         }
 
+        public void EnsureCollectionLoaded<TProperty>(TEntity entity, Expression<Func<TEntity, IEnumerable<TProperty>>> collectionExpression,
+            CancellationToken cancellationToken) where TProperty : class
+        {
+            var expression = collectionExpression.Body as MemberExpression;
+            if (expression == null)
+            {
+                throw new AbpException($"Given {nameof(collectionExpression)} is not a {typeof(MemberExpression).FullName}");
+            }
+
+            Context.Entry(entity)
+                .Collection(expression.Member.Name)
+                .Load();
+        }
+
         public Task EnsurePropertyLoadedAsync<TProperty>(TEntity entity, Expression<Func<TEntity, TProperty>> propertyExpression,
             CancellationToken cancellationToken) where TProperty : class
         {
             return Context.Entry(entity).Reference(propertyExpression).LoadAsync(cancellationToken);
+        }
+
+        public void EnsurePropertyLoaded<TProperty>(TEntity entity, Expression<Func<TEntity, TProperty>> propertyExpression,
+            CancellationToken cancellationToken) where TProperty : class
+        {
+            Context.Entry(entity).Reference(propertyExpression).Load();
         }
     }
 }

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -13,12 +12,14 @@ using Abp.Domain.Entities;
 using Abp.Domain.Entities.Auditing;
 using Abp.Domain.Repositories;
 using Abp.Domain.Uow;
+using Abp.EntityFramework;
 using Abp.EntityFrameworkCore.Extensions;
+using Abp.EntityFrameworkCore.Utils;
+using Abp.EntityFrameworkCore.ValueConverters;
 using Abp.Events.Bus;
 using Abp.Events.Bus.Entities;
 using Abp.Extensions;
 using Abp.Linq.Expressions;
-using Abp.Reflection;
 using Abp.Runtime.Session;
 using Abp.Timing;
 using Castle.Core.Logging;
@@ -31,7 +32,7 @@ namespace Abp.EntityFrameworkCore
     /// <summary>
     /// Base class for all DbContext classes in the application.
     /// </summary>
-    public abstract class AbpDbContext : DbContext, ITransientDependency
+    public abstract class AbpDbContext : DbContext, ITransientDependency, IShouldInitializeDcontext
     {
         /// <summary>
         /// Used to get current session values.
@@ -84,6 +85,8 @@ namespace Abp.EntityFrameworkCore
 
         private static MethodInfo ConfigureGlobalFiltersMethodInfo = typeof(AbpDbContext).GetMethod(nameof(ConfigureGlobalFilters), BindingFlags.Instance | BindingFlags.NonPublic);
 
+        private static MethodInfo ConfigureGlobalValueConverterMethodInfo = typeof(AbpDbContext).GetMethod(nameof(ConfigureGlobalValueConverter), BindingFlags.Instance | BindingFlags.NonPublic);
+
         /// <summary>
         /// Constructor.
         /// </summary>
@@ -116,6 +119,10 @@ namespace Abp.EntityFrameworkCore
                 ConfigureGlobalFiltersMethodInfo
                     .MakeGenericMethod(entityType.ClrType)
                     .Invoke(this, new object[] { modelBuilder, entityType });
+
+                ConfigureGlobalValueConverterMethodInfo
+                    .MakeGenericMethod(entityType.ClrType)
+                    .Invoke(this, new object[] { modelBuilder, entityType });
             }
         }
 
@@ -127,9 +134,9 @@ namespace Abp.EntityFrameworkCore
                 var filterExpression = CreateFilterExpression<TEntity>();
                 if (filterExpression != null)
                 {
-                    if (entityType.IsQueryType)
+                    if (entityType.IsKeyless)
                     {
-                        modelBuilder.Query<TEntity>().HasQueryFilter(filterExpression);
+                        modelBuilder.Entity<TEntity>().HasQueryFilter(filterExpression);
                     }
                     else
                     {
@@ -166,39 +173,43 @@ namespace Abp.EntityFrameworkCore
 
             if (typeof(ISoftDelete).IsAssignableFrom(typeof(TEntity)))
             {
-                /* This condition should normally be defined as below:
-                 * !IsSoftDeleteFilterEnabled || !((ISoftDelete) e).IsDeleted
-                 * But this causes a problem with EF Core (see https://github.com/aspnet/EntityFrameworkCore/issues/9502)
-                 * So, we made a workaround to make it working. It works same as above.
-                 */
-
-                Expression<Func<TEntity, bool>> softDeleteFilter = e => !((ISoftDelete)e).IsDeleted || ((ISoftDelete)e).IsDeleted != IsSoftDeleteFilterEnabled;
+                Expression<Func<TEntity, bool>> softDeleteFilter = e => !IsSoftDeleteFilterEnabled || !((ISoftDelete) e).IsDeleted;
                 expression = expression == null ? softDeleteFilter : CombineExpressions(expression, softDeleteFilter);
             }
 
             if (typeof(IMayHaveTenant).IsAssignableFrom(typeof(TEntity)))
             {
-                /* This condition should normally be defined as below:
-                 * !IsMayHaveTenantFilterEnabled || ((IMayHaveTenant)e).TenantId == CurrentTenantId
-                 * But this causes a problem with EF Core (see https://github.com/aspnet/EntityFrameworkCore/issues/9502)
-                 * So, we made a workaround to make it working. It works same as above.
-                 */
-                Expression<Func<TEntity, bool>> mayHaveTenantFilter = e => ((IMayHaveTenant)e).TenantId == CurrentTenantId || (((IMayHaveTenant)e).TenantId == CurrentTenantId) == IsMayHaveTenantFilterEnabled;
+                Expression<Func<TEntity, bool>> mayHaveTenantFilter = e => !IsMayHaveTenantFilterEnabled || ((IMayHaveTenant)e).TenantId == CurrentTenantId;
                 expression = expression == null ? mayHaveTenantFilter : CombineExpressions(expression, mayHaveTenantFilter);
             }
 
             if (typeof(IMustHaveTenant).IsAssignableFrom(typeof(TEntity)))
             {
-                /* This condition should normally be defined as below:
-                 * !IsMustHaveTenantFilterEnabled || ((IMustHaveTenant)e).TenantId == CurrentTenantId
-                 * But this causes a problem with EF Core (see https://github.com/aspnet/EntityFrameworkCore/issues/9502)
-                 * So, we made a workaround to make it working. It works same as above.
-                 */
-                Expression<Func<TEntity, bool>> mustHaveTenantFilter = e => ((IMustHaveTenant)e).TenantId == CurrentTenantId || (((IMustHaveTenant)e).TenantId == CurrentTenantId) == IsMustHaveTenantFilterEnabled;
+                Expression<Func<TEntity, bool>> mustHaveTenantFilter = e => !IsMustHaveTenantFilterEnabled || ((IMustHaveTenant)e).TenantId == CurrentTenantId;
                 expression = expression == null ? mustHaveTenantFilter : CombineExpressions(expression, mustHaveTenantFilter);
             }
 
             return expression;
+        }
+
+        protected void ConfigureGlobalValueConverter<TEntity>(ModelBuilder modelBuilder, IMutableEntityType entityType)
+            where TEntity : class
+        {
+            if (entityType.BaseType == null && 
+                !typeof(TEntity).IsDefined(typeof(DisableDateTimeNormalizationAttribute), true) &&
+                !typeof(TEntity).IsDefined(typeof(OwnedAttribute), true) &&
+                !entityType.IsOwned())
+            {
+                var dateTimeValueConverter = new AbpDateTimeValueConverter();
+                var dateTimePropertyInfos = DateTimePropertyInfoHelper.GetDatePropertyInfos(typeof(TEntity));
+                dateTimePropertyInfos.DateTimePropertyInfos.ForEach(property =>
+                {
+                    modelBuilder
+                        .Entity<TEntity>()
+                        .Property(property.Name)
+                        .HasConversion(dateTimeValueConverter);
+                });
+            }
         }
 
         public override int SaveChanges()
@@ -231,6 +242,20 @@ namespace Abp.EntityFrameworkCore
             }
         }
 
+        public virtual void Initialize(AbpEfDbContextInitializationContext initializationContext)
+        {
+            var uowOptions = initializationContext.UnitOfWork.Options;
+            if (uowOptions.Timeout.HasValue &&
+                Database.IsRelational() && 
+                !Database.GetCommandTimeout().HasValue)
+            {
+                Database.SetCommandTimeout(uowOptions.Timeout.Value.TotalSeconds.To<int>());
+            }
+            
+            ChangeTracker.CascadeDeleteTiming = CascadeTiming.OnSaveChanges;
+            ChangeTracker.DeleteOrphansTiming = CascadeTiming.OnSaveChanges;
+        }
+        
         protected virtual EntityChangeReport ApplyAbpConcepts()
         {
             var changeReport = new EntityChangeReport();
