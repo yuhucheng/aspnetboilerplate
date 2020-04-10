@@ -50,8 +50,9 @@ namespace Abp.Zero
                 context =>
                 {
                     var blog1 = new Blog("test-blog-1", "http://testblog1.myblogs.com", "blogger-1");
+                    var blog2 = new Blog() { Name = "test-blog-2" };
 
-                    context.Blogs.Add(blog1);
+                    context.Blogs.AddRange(blog1, blog2);
                     context.SaveChanges();
 
                     var post1 = new Post { Blog = blog1, Title = "test-post-1-title", Body = "test-post-1-body" };
@@ -64,6 +65,11 @@ namespace Abp.Zero
                     var comment1 = new Comment { Post = post1, Content = "test-comment-1-content" };
 
                     context.Comments.Add(comment1);
+
+                    var advertisement1 = new Advertisement { Banner = "test-advertisement-1" };
+                    var advertisement2 = new Advertisement { Banner = "test-advertisement-2" };
+
+                    context.Advertisements.AddRange(advertisement1, advertisement2);
                 });
         }
 
